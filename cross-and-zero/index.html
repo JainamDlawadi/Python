@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A beautifully designed Tic-Tac-Toe game with smooth animations and an AI opponent.">
+    <title>Cross & Zero — Tic Tac Toe</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ── Reset & Base ── */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0a0a1a;
+            --bg-secondary: #12122a;
+            --glass: rgba(255, 255, 255, 0.04);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --accent-x: #ff6b6b;
+            --accent-x-glow: rgba(255, 107, 107, 0.35);
+            --accent-o: #6bc5ff;
+            --accent-o-glow: rgba(107, 197, 255, 0.35);
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888aa;
+            --win-glow: #ffd700;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ── Animated background blobs ── */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.4;
+            pointer-events: none;
+            animation: blobFloat 12s ease-in-out infinite alternate;
+        }
+        .blob-1 { width: 420px; height: 420px; background: var(--accent-x); top: -10%; left: -8%; animation-delay: 0s; }
+        .blob-2 { width: 380px; height: 380px; background: var(--accent-o); bottom: -12%; right: -6%; animation-delay: -4s; }
+        .blob-3 { width: 260px; height: 260px; background: #a36bff; top: 50%; left: 60%; animation-delay: -8s; }
+
+        @keyframes blobFloat {
+            0%   { transform: translate(0, 0) scale(1); }
+            50%  { transform: translate(30px, -40px) scale(1.12); }
+            100% { transform: translate(-20px, 20px) scale(0.95); }
+        }
+
+        /* ── Container ── */
+        .game-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 28px;
+            padding: 40px;
+            border-radius: 28px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+        }
+
+        /* ── Title ── */
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, var(--accent-x), #a36bff, var(--accent-o));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ── Mode Selector ── */
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 14px;
+            padding: 5px;
+            border: 1px solid var(--glass-border);
+        }
+        .mode-btn {
+            padding: 10px 22px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .mode-btn.active {
+            background: linear-gradient(135deg, rgba(255,107,107,0.18), rgba(107,197,255,0.18));
+            color: var(--text-primary);
+            box-shadow: 0 0 20px rgba(163, 107, 255, 0.15);
+        }
+        .mode-btn:hover:not(.active) {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.04);
+        }
+
+        /* ── Status Bar ── */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            min-height: 36px;
+        }
+        .status-bar .turn-icon {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            vertical-align: middle;
+        }
+        .status-bar .turn-icon.x {
+            background: var(--accent-x);
+            box-shadow: 0 0 12px var(--accent-x-glow);
+        }
+        .status-bar .turn-icon.o {
+            background: var(--accent-o);
+            box-shadow: 0 0 12px var(--accent-o-glow);
+        }
+
+        /* ── Board ── */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .cell {
+            width: 110px;
+            height: 110px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .cell:hover:not(.taken) {
+            background: rgba(255,255,255,0.07);
+            transform: scale(1.04);
+            border-color: rgba(255,255,255,0.15);
+        }
+        .cell:active:not(.taken) {
+            transform: scale(0.97);
+        }
+        .cell.taken {
+            cursor: default;
+        }
+
+        /* ── X & O marks ── */
+        .cell .mark {
+            font-size: 3rem;
+            font-weight: 800;
+            opacity: 0;
+            transform: scale(0.3) rotate(-15deg);
+            animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        .cell .mark.x {
+            color: var(--accent-x);
+            text-shadow: 0 0 24px var(--accent-x-glow);
+        }
+        .cell .mark.o {
+            color: var(--accent-o);
+            text-shadow: 0 0 24px var(--accent-o-glow);
+        }
+
+        @keyframes popIn {
+            to { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+
+        /* ── Win line highlight ── */
+        .cell.win-cell {
+            animation: winPulse 1s ease-in-out infinite;
+            border-color: var(--win-glow);
+            box-shadow: 0 0 28px rgba(255, 215, 0, 0.25);
+        }
+        @keyframes winPulse {
+            0%, 100% { box-shadow: 0 0 18px rgba(255,215,0,0.2); }
+            50%      { box-shadow: 0 0 36px rgba(255,215,0,0.45); }
+        }
+
+        /* ── Scoreboard ── */
+        .scoreboard {
+            display: flex;
+            gap: 32px;
+        }
+        .score-item {
+            text-align: center;
+        }
+        .score-item .label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 4px;
+        }
+        .score-item .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        .score-item .value.x-score { color: var(--accent-x); }
+        .score-item .value.o-score { color: var(--accent-o); }
+        .score-item .value.d-score { color: var(--text-secondary); }
+
+        /* ── Buttons ── */
+        .btn-row {
+            display: flex;
+            gap: 12px;
+        }
+        .btn {
+            padding: 12px 28px;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.04);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        .btn.primary {
+            background: linear-gradient(135deg, var(--accent-x), #a36bff);
+            border: none;
+            color: #fff;
+        }
+        .btn.primary:hover {
+            box-shadow: 0 8px 30px rgba(163,107,255,0.4);
+        }
+
+        /* ── Result Overlay ── */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 10, 26, 0.85);
+            backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+        .overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .overlay-content {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            transform: scale(0.85);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .overlay.visible .overlay-content {
+            transform: scale(1);
+        }
+        .overlay-content .result-text {
+            font-size: 2.5rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        .overlay-content .result-text.x-wins {
+            background: linear-gradient(135deg, var(--accent-x), #ff9a9a);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .overlay-content .result-text.o-wins {
+            background: linear-gradient(135deg, var(--accent-o), #9adcff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .overlay-content .result-text.draw {
+            background: linear-gradient(135deg, #aaa, #666);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 500px) {
+            .game-container { padding: 24px 18px; gap: 20px; }
+            .cell { width: 86px; height: 86px; border-radius: 14px; }
+            .cell .mark { font-size: 2.2rem; }
+            h1 { font-size: 1.4rem; }
+            .scoreboard { gap: 20px; }
+            .score-item .value { font-size: 1.4rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background blobs -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+
+    <div class="game-container">
+        <h1>Cross & Zero</h1>
+
+        <!-- Mode Selector -->
+        <div class="mode-selector">
+            <button class="mode-btn active" id="btn-vs-ai" onclick="setMode('ai')">VS Computer</button>
+            <button class="mode-btn" id="btn-vs-human" onclick="setMode('human')">2 Players</button>
+        </div>
+
+        <!-- Status -->
+        <div class="status-bar" id="status">
+            <span class="turn-icon x"></span>
+            <span>X's turn</span>
+        </div>
+
+        <!-- Board -->
+        <div class="board" id="board">
+            <div class="cell" data-index="0" onclick="handleClick(0)"></div>
+            <div class="cell" data-index="1" onclick="handleClick(1)"></div>
+            <div class="cell" data-index="2" onclick="handleClick(2)"></div>
+            <div class="cell" data-index="3" onclick="handleClick(3)"></div>
+            <div class="cell" data-index="4" onclick="handleClick(4)"></div>
+            <div class="cell" data-index="5" onclick="handleClick(5)"></div>
+            <div class="cell" data-index="6" onclick="handleClick(6)"></div>
+            <div class="cell" data-index="7" onclick="handleClick(7)"></div>
+            <div class="cell" data-index="8" onclick="handleClick(8)"></div>
+        </div>
+
+        <!-- Scoreboard -->
+        <div class="scoreboard">
+            <div class="score-item">
+                <div class="label">X Wins</div>
+                <div class="value x-score" id="score-x">0</div>
+            </div>
+            <div class="score-item">
+                <div class="label">Draws</div>
+                <div class="value d-score" id="score-d">0</div>
+            </div>
+            <div class="score-item">
+                <div class="label">O Wins</div>
+                <div class="value o-score" id="score-o">0</div>
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="btn-row">
+            <button class="btn primary" onclick="resetGame()">New Game</button>
+            <button class="btn" onclick="resetScores()">Reset Scores</button>
+        </div>
+    </div>
+
+    <!-- Win / Draw Overlay -->
+    <div class="overlay" id="overlay">
+        <div class="overlay-content">
+            <div class="result-text" id="result-text"></div>
+            <button class="btn primary" onclick="closeOverlayAndReset()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // ── State ──
+        const WIN_COMBOS = [
+            [0,1,2],[3,4,5],[6,7,8], // rows
+            [0,3,6],[1,4,7],[2,5,8], // cols
+            [0,4,8],[2,4,6]          // diags
+        ];
+
+        let board = Array(9).fill(null);
+        let currentPlayer = 'X';
+        let gameOver = false;
+        let mode = 'ai'; // 'ai' | 'human'
+        let scores = { X: 0, O: 0, D: 0 };
+
+        const cells = document.querySelectorAll('.cell');
+        const statusEl = document.getElementById('status');
+        const overlay = document.getElementById('overlay');
+        const resultText = document.getElementById('result-text');
+
+        // ── Mode Toggle ──
+        function setMode(m) {
+            mode = m;
+            document.getElementById('btn-vs-ai').classList.toggle('active', m === 'ai');
+            document.getElementById('btn-vs-human').classList.toggle('active', m === 'human');
+            resetGame();
+        }
+
+        // ── Handle Click ──
+        function handleClick(index) {
+            if (board[index] || gameOver) return;
+            if (mode === 'ai' && currentPlayer === 'O') return; // block clicks during AI turn
+
+            makeMove(index, currentPlayer);
+
+            if (!gameOver && mode === 'ai' && currentPlayer === 'O') {
+                setTimeout(aiMove, 350);
+            }
+        }
+
+        function makeMove(index, player) {
+            board[index] = player;
+            const cell = cells[index];
+            cell.classList.add('taken');
+            cell.innerHTML = `<span class="mark ${player.toLowerCase()}">${player}</span>`;
+
+            const winCombo = checkWin(player);
+            if (winCombo) {
+                endGame(player, winCombo);
+                return;
+            }
+            if (board.every(c => c !== null)) {
+                endGame(null);
+                return;
+            }
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            updateStatus();
+        }
+
+        // ── AI (Minimax) ──
+        function aiMove() {
+            if (gameOver) return;
+            const best = minimax(board, 'O');
+            makeMove(best.index, 'O');
+        }
+
+        function minimax(boardState, player) {
+            const empty = boardState.map((v, i) => v === null ? i : null).filter(v => v !== null);
+
+            if (checkWinState(boardState, 'X')) return { score: -10 };
+            if (checkWinState(boardState, 'O')) return { score: 10 };
+            if (empty.length === 0) return { score: 0 };
+
+            const moves = [];
+            for (const i of empty) {
+                const move = { index: i };
+                boardState[i] = player;
+                const result = minimax(boardState, player === 'O' ? 'X' : 'O');
+                move.score = result.score;
+                boardState[i] = null;
+                moves.push(move);
+            }
+
+            let best;
+            if (player === 'O') {
+                let bestScore = -Infinity;
+                for (const m of moves) { if (m.score > bestScore) { bestScore = m.score; best = m; } }
+            } else {
+                let bestScore = Infinity;
+                for (const m of moves) { if (m.score < bestScore) { bestScore = m.score; best = m; } }
+            }
+            return best;
+        }
+
+        function checkWinState(b, p) {
+            return WIN_COMBOS.some(c => c.every(i => b[i] === p));
+        }
+
+        // ── Win / Draw ──
+        function checkWin(player) {
+            return WIN_COMBOS.find(c => c.every(i => board[i] === player)) || null;
+        }
+
+        function endGame(winner, combo) {
+            gameOver = true;
+            if (winner) {
+                combo.forEach(i => cells[i].classList.add('win-cell'));
+                scores[winner]++;
+                resultText.textContent = `${winner} Wins!`;
+                resultText.className = 'result-text ' + (winner === 'X' ? 'x-wins' : 'o-wins');
+            } else {
+                scores.D++;
+                resultText.textContent = "It's a Draw!";
+                resultText.className = 'result-text draw';
+            }
+            updateScoreboard();
+            setTimeout(() => overlay.classList.add('visible'), 600);
+        }
+
+        // ── UI Helpers ──
+        function updateStatus() {
+            const icon = currentPlayer === 'X' ? 'x' : 'o';
+            statusEl.innerHTML = `<span class="turn-icon ${icon}"></span><span>${currentPlayer}'s turn</span>`;
+        }
+
+        function updateScoreboard() {
+            document.getElementById('score-x').textContent = scores.X;
+            document.getElementById('score-o').textContent = scores.O;
+            document.getElementById('score-d').textContent = scores.D;
+        }
+
+        function resetGame() {
+            board = Array(9).fill(null);
+            currentPlayer = 'X';
+            gameOver = false;
+            cells.forEach(cell => {
+                cell.innerHTML = '';
+                cell.classList.remove('taken', 'win-cell');
+            });
+            updateStatus();
+            overlay.classList.remove('visible');
+        }
+
+        function resetScores() {
+            scores = { X: 0, O: 0, D: 0 };
+            updateScoreboard();
+            resetGame();
+        }
+
+        function closeOverlayAndReset() {
+            overlay.classList.remove('visible');
+            setTimeout(resetGame, 300);
+        }
+    </script>
+</body>
+</html>
